@@ -1,71 +1,80 @@
-/* eslint-disable react-hooks/exhaustive-deps */
-import React, { ReactNode, useEffect, useRef, useState } from "react";
-
-type Props ={
-    children: ReactNode
-    ease: number
-}
-
-const SmoothScroll = ({ children, ease }:Props) => {
-  // 1.
-
-  const [windowSize, setWindowSize] = useState({
-    width: 0,
-    height: 0
-  });
-
-  useEffect(() => {
-    const handleResize = () => {
-      setWindowSize({
-        width: window.innerWidth,
-        height: window.innerHeight
-      });
-    };
-
-    window.addEventListener("resize", handleResize);
-    return () => window.removeEventListener("resize", handleResize);
-  }, []);
-
-  //2.
-  const scrollingContainerRef = useRef<any>(null);
-
-  // 3.
-  const data = {
-    ease,
+import React, { useEffect, useRef } from "react";
+type Props = {
+  children: React.ReactNode;
+  ease?: number;
+  skew?: boolean;
+};
+export default function SmoothScroller({
+  children,
+  ease = 0.1,
+  skew = false
+}: Props) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const images = [];
+  let data = {
     current: 0,
-    previous: 0,
-    rounded: 0
+    target: 0,
+    ease,
+    skewDiff: 0,
+    windowWidth: 0,
+    containerHeight: 0,
+    imageHeight: 0
   };
 
-  // 4.
-  useEffect(() => {
-    setBodyHeight();
-  }, [windowSize.height]);
+  function lerp(start: number, end: number, t: number) {
+    return start * (1 - t) + end * t;
+  }
+  function setTransform(el: HTMLElement, transform: string) {
+    el.style.transform = transform;
+  }
+  // function updateImages() {
+  //   let ratio = data.current / scrollProperties.imageHeight;
+  //   let intersectioRatioIndex, intersectionRatioValue;
 
-  const setBodyHeight = () => {
-    if(scrollingContainerRef.current){
-        document.body.style.height = `${
-            scrollingContainerRef.current.getBoundingClientRect().height
-        }px`;
+  //   images.forEach((image, idx) => {
+  //     intersectioRatioIndex =
+  //       scrollProperties.windowWidth > 760 ? parseInt(idx / 2) : idx;
+  //     intersectionRatioValue = ratio - intersectioRatioIndex;
+  //     setTransform(image, `translateY(${intersectionRatioValue * 70}px)`);
+  //   });
+  // }
+
+  function smoothScroll() {
+    if (containerRef.current) {
+      data.current = lerp(data.current, data.target, data.ease);
+      data.current = parseFloat(data.current.toFixed(2));
+      data.target = window.scrollY;
+      data.skewDiff = (data.target - data.current) * 0.015;
+      if (skew) {
+        setTransform(
+          containerRef.current,
+          `translateY(${-data.current}px) skewY(${data.skewDiff}deg) `
+        );
+      } else {
+        setTransform(containerRef.current, `translateY(${-data.current}px)`);
+      }
+
+      // updateImages();
+      requestAnimationFrame(smoothScroll);
     }
-  };
+  }
 
-  // 5.
+  function setupAnimation() {
+    if (containerRef.current) {
+      data.windowWidth = window.innerWidth;
+      data.containerHeight = containerRef.current.getBoundingClientRect().height;
+      data.imageHeight =
+        data.containerHeight /
+        (data.windowWidth > 760 ? images.length / 2 : images.length);
+
+      document.body.style.height = `${data.containerHeight}px`;
+      smoothScroll();
+    }
+  }
+
   useEffect(() => {
-    requestAnimationFrame(() => smoothScrollingHandler());
+    setupAnimation();
   }, []);
-
-  const smoothScrollingHandler = () => {
-    data.current = window.scrollY;
-    data.previous += (data.current - data.previous) * data.ease;
-    data.rounded = Math.round(data.previous * 100) / 100;
-
-    if(scrollingContainerRef.current){
-        scrollingContainerRef.current.style.transform = `translateY(-${data.previous}px)`;
-    }
-    // Recursive call
-    requestAnimationFrame(() => smoothScrollingHandler());
-  };
 
   return (
     <div
@@ -74,13 +83,10 @@ const SmoothScroll = ({ children, ease }:Props) => {
         top: 0,
         left: 0,
         width: "100%",
-        height: "100%",
-        overflow: "hidden"
+        height: "100vh"
       }}
     >
-      <div ref={scrollingContainerRef}>{children}</div>
+      <div ref={containerRef}>{children}</div>
     </div>
   );
-};
-
-export default SmoothScroll;
+}
